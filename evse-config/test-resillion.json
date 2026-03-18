@@ -1,0 +1,29 @@
+{
+  "envs": {
+    "test": {
+      "companies": {
+        "test-resillion": {
+          "name": "Test Resillion",
+          "locations": {
+            "test-loc-1": {
+              "name": "Test Location 1",
+              "evses": [
+                {
+                  "evseId": "TEST-RESILLION-1",
+                  "connectors": 1,
+                  "csmsUrl": "ws://localhost:9000/ocpp1.6",
+                  "brand": "resillion",
+                  "boot": {
+                    "chargePointVendor": "Resillion",
+                    "chargePointModel": "TPX-701",
+                    "firmwareVersion": "1.0.0"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

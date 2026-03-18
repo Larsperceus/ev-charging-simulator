@@ -1,0 +1,29 @@
+{
+  "envs": {
+    "test": {
+      "companies": {
+        "test-mobilityplus": {
+          "name": "Test MobilityPlus",
+          "locations": {
+            "test-loc-2": {
+              "name": "Test Location 2",
+              "evses": [
+                {
+                  "evseId": "TEST-MOBILITYPLUS-1",
+                  "connectors": 2,
+                  "csmsUrl": "ws://localhost:9000/ocpp1.6",
+                  "brand": "mobilityplus",
+                  "boot": {
+                    "chargePointVendor": "MobilityPlus",
+                    "chargePointModel": "MP-2000",
+                    "firmwareVersion": "2.0.0"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

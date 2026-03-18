@@ -14,8 +14,8 @@ on:
           - 'false'
 
 permissions:
-  contents: read
-  packages: write
+  contents: write
+  id-token: write
 
 jobs:
   publish:
@@ -43,8 +43,6 @@ jobs:
 
       - name: Publish to npm
         run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create GitHub Release Assets
         if: startsWith(github.ref, 'refs/tags/')

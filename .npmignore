@@ -49,10 +49,6 @@ package-lock.json
 .travis.yml
 Jenkinsfile
 
-# Documentation that's auto-synced
-CONTRIBUTING.md
-DEPLOYMENT.md
-
 # Config files
 tsconfig.json
 vite.config.ts
@@ -61,7 +57,7 @@ jest.config.js
 .prettierrc
 .eslintrc.json
 
-# Root files (README is included via package.json "files")
+# Root files
 docker-compose.yml
 *.yml
 Dockerfile

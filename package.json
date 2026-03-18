@@ -57,8 +57,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:ci": "vitest run --coverage",
-    "setup:badges": "node setup-badges.js"
+    "test:ci": "vitest run --coverage"
   },
   "engines": {
     "node": ">=18.0.0"

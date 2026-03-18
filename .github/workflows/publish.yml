@@ -42,7 +42,7 @@ jobs:
         run: npm test
 
       - name: Publish to npm
-        run: npm publish
+        run: npm publish --access public
 
       - name: Create GitHub Release Assets
         if: startsWith(github.ref, 'refs/tags/')

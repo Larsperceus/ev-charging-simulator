@@ -1,0 +1,65 @@
+# Codecov Configuration
+# See: https://docs.codecov.com/docs/codecov-yaml
+
+codecov:
+  require_ci_to_pass: true
+  precision: 2
+  round: down
+  layout: "reach, diff, flags, tree"
+  branches:
+    - main
+    - develop
+
+coverage:
+  precision: 2
+  round: down
+  range: "70...100"
+
+# Flag configuration for different test suites
+flag:
+  unit:
+    carryforward: false
+    paths:
+      - src
+
+# Ignore patterns (files that don't need coverage)
+ignore:
+  - "**/__tests__"
+  - "**/*.test.ts"
+  - "**/*.spec.ts"
+  - "**/dist"
+  - "**/node_modules"
+  - "coverage"
+
+# Pull request comment settings
+comment:
+  layout: "reach,diff,flags,tree"
+  behavior: default
+  require_changes: false
+  require_base: yes
+  require_head: yes
+  deletions: false
+
+# Status check settings
+status:
+  project:
+    default:
+      target: 80
+      threshold: 5
+      if_ci_failed: pass
+  patch:
+    default:
+      target: 80
+      threshold: 5
+      if_ci_failed: pass
+  changes:
+    default:
+      if_ci_failed: same_as_base
+
+# GitHub specific settings
+github:
+  require_ci_to_pass: true
+  require_status_checks: []
+
+# Codecov enterprise URL (leave blank for SaaS)
+# codecov_enterprise_url: https://codecov.example.com

@@ -1,0 +1,87 @@
+name: Check Release Quality
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  release-ready:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check required files exist
+        run: |
+          required_files=(
+            "package.json"
+            "README.md"
+            "LICENSE"
+            "tsconfig.json"
+            ".gitignore"
+          )
+          
+          missing=0
+          for file in "${required_files[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "❌ Missing required file: $file"
+              missing=$((missing + 1))
+            else
+              echo "✅ Found: $file"
+            fi
+          done
+          
+          if [ $missing -gt 0 ]; then
+            exit 1
+          fi
+
+      - name: Validate package.json
+        run: |
+          npm ls --depth=0 2>&1 | head -20
+          if [ $? -ne 0 ]; then
+            echo "⚠️  package.json validation issue (non-fatal)"
+          fi
+
+      - name: Check package.json has required fields
+        run: |
+          node -e "
+          const pkg = require('./package.json');
+          const required = ['name', 'version', 'description', 'main', 'license'];
+          const missing = required.filter(f => !pkg[f]);
+          if (missing.length > 0) {
+            console.error('❌ Missing fields in package.json:', missing);
+            process.exit(1);
+          }
+          console.log('✅ package.json has all required fields');
+          "
+
+      - name: Verify README is not empty
+        run: |
+          size=$(wc -c < README.md)
+          if [ $size -lt 500 ]; then
+            echo "❌ README.md is too short (less than 500 bytes)"
+            exit 1
+          fi
+          echo "✅ README.md has sufficient content"
+
+      - name: Check versioning follows semver
+        run: |
+          node -e "
+          const pkg = require('./package.json');
+          const semverRegex = /^\d+\.\d+\.\d+(-[a-z0-9]+)?$/;
+          if (!semverRegex.test(pkg.version)) {
+            console.error('❌ Version does not follow semantic versioning:', pkg.version);
+            process.exit(1);
+          }
+          console.log('✅ Version follows semantic versioning:', pkg.version);
+          "
+
+      - name: Summary
+        if: success()
+        run: echo "✅ Release quality checks passed!"
+
+      - name: Failure summary
+        if: failure()
+        run: echo "❌ Release quality checks failed. Please fix the issues above."

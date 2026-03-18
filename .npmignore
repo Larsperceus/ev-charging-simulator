@@ -1,0 +1,67 @@
+# Source files - use dist/ in published package
+src/
+
+# Tests
+__tests__/
+*.test.ts
+*.test.js
+.test/
+test/
+tests/
+coverage/
+.coverage/
+
+# Development
+.env
+.env.local
+.env.*.local
+.DS_Store
+*.pem
+*.key
+
+# Git
+.git/
+.gitignore
+.github/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.code-workspace
+
+# Build artifacts (keep dist/)
+build/
+tsc-dist/
+*.map
+
+# Package managers
+node_modules/
+yarn.lock
+pnpm-lock.yaml
+package-lock.json
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile
+
+# Documentation that's auto-synced
+CONTRIBUTING.md
+DEPLOYMENT.md
+
+# Config files
+tsconfig.json
+vite.config.ts
+vitest.config.ts
+jest.config.js
+.prettierrc
+.eslintrc.json
+
+# Root files (README is included via package.json "files")
+docker-compose.yml
+*.yml
+Dockerfile

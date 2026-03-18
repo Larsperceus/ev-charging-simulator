@@ -1,0 +1,14 @@
+{
+  "envs": {
+    "test": {
+      "name": "Test"
+    },
+    "staging": {
+      "name": "Staging"
+    }
+  },
+  "includes": [
+    "evse-config/test-resillion.json",
+    "evse-config/test-mobilityplus.json"
+  ]
+}

@@ -1,0 +1,108 @@
+{
+  "default": "generic",
+  "brands": {
+    "generic": {
+      "name": "generic",
+      "allowedActions": [
+        "GetConfiguration",
+        "ChangeConfiguration",
+        "ChangeAvailability",
+        "ClearCache",
+        "RemoteStartTransaction",
+        "RemoteStopTransaction",
+        "Reset",
+        "UnlockConnector",
+        "UpdateFirmware",
+        "GetDiagnostics",
+        "TriggerMessage",
+        "ReserveNow",
+        "CancelReservation"
+      ],
+      "config": {
+        "mode": "lenient",
+        "allowedKeys": []
+      },
+      "firmware": {
+        "rebootAfterInstall": true
+      },
+      "supportedProfiles": [
+        "Core",
+        "FirmwareManagement",
+        "Diagnostics",
+        "RemoteTrigger",
+        "Reservation"
+      ]
+    },
+    "alfen": {
+      "name": "alfen",
+      "allowedActions": [
+        "GetConfiguration",
+        "ChangeConfiguration",
+        "ChangeAvailability",
+        "ClearCache",
+        "RemoteStartTransaction",
+        "RemoteStopTransaction",
+        "Reset",
+        "UnlockConnector",
+        "UpdateFirmware",
+        "GetDiagnostics",
+        "TriggerMessage",
+        "ReserveNow",
+        "CancelReservation"
+      ],
+      "config": {
+        "mode": "strict",
+        "allowedKeys": [
+          "HeartbeatInterval",
+          "MeterValueSampleInterval",
+          "MeterValuesSampledData",
+          "SupportedProfiles"
+        ]
+      },
+      "firmware": {
+        "rebootAfterInstall": true
+      },
+      "supportedProfiles": [
+        "Core",
+        "FirmwareManagement",
+        "LocalAuthListManagement",
+        "Reservation",
+        "SmartCharging",
+        "Diagnostics",
+        "RemoteTrigger"
+      ]
+    },
+    "peblar": {
+      "name": "peblar",
+      "allowedActions": [
+        "GetConfiguration",
+        "ChangeAvailability",
+        "RemoteStartTransaction",
+        "RemoteStopTransaction",
+        "Reset",
+        "UpdateFirmware",
+        "GetDiagnostics",
+        "TriggerMessage",
+        "ReserveNow",
+        "CancelReservation"
+      ],
+      "config": {
+        "mode": "strict",
+        "allowedKeys": [
+          "HeartbeatInterval",
+          "SupportedProfiles"
+        ]
+      },
+      "firmware": {
+        "rebootAfterInstall": false
+      },
+      "supportedProfiles": [
+        "Core",
+        "FirmwareManagement",
+        "Diagnostics",
+        "RemoteTrigger",
+        "Reservation"
+      ]
+    }
+  }
+}

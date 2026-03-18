@@ -61,6 +61,7 @@ jobs:
         with:
           sarif_file: 'trivy-results.sarif'
         if: always()
+        continue-on-error: true
 
   type-safety:
     runs-on: ubuntu-latest

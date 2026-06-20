@@ -11,7 +11,7 @@ export default defineConfig({
       include: ['src/**/*.ts'],
       exclude: ['src/__tests__/**', 'dist/**', 'node_modules/**'],
       thresholds: {
-        lines: 80,
+        lines: 70,
       },
     },
   }

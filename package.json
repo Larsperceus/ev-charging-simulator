@@ -1,5 +1,5 @@
 {
-  "name": "@larsperceus/ev-charging-simulator",
+  "name": "ev-charging-simulator",
   "version": "1.1.0",
   "description": "Production-ready OCPP 1.6 EV charging station simulator. Works as a reusable TypeScript library or standalone server for testing CSMS integration.",
   "keywords": [
@@ -21,7 +21,7 @@
     "name": "EV Charging Simulator Contributors"
   },
   "license": "MIT",
-  "homepage": "https://www.npmjs.com/package/@larsperceus/ev-charging-simulator",
+  "homepage": "https://www.npmjs.com/package/ev-charging-simulator",
   "repository": {
     "type": "git",
     "url": "https://github.com/larsperceus/ev-charging-simulator.git"
@@ -30,7 +30,7 @@
     "url": "https://github.com/larsperceus/ev-charging-simulator/issues"
   },
   "publishConfig": {
-    "access": "public"
+    "registry": "https://registry.npmjs.org"
   },
   "type": "module",
   "main": "dist/public.js",

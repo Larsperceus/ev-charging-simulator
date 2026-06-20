@@ -55,7 +55,7 @@ jobs:
 
       - name: Publish to GitHub Packages
         run: |
-          echo "@larsperceus:registry=https://npm.pkg.github.com" >> .npmrc
+          npm pkg set name=@larsperceus/ev-charging-simulator
           npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

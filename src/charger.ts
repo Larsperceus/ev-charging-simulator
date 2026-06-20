@@ -1,6 +1,6 @@
 import { loadBrandProfiles, selectBrandProfile, type BrandProfile, type BrandProfilesConfig } from './brandProfiles.js';
 import { loadEvseConfig, normalizeEvseConfigObject, type EvseConfigEntry } from './evseConfig.js';
-import { type BootOptions, OcppClient, type ConnectorState } from './ocppClient.js';
+import { type BootOptions, OcppClient, type ConnectorState, type LocalStartResult, type LocalStopResult } from './ocppClient.js';
 
 const DEFAULT_CSMS_URL = 'ws://localhost:9000/ocpp1.6';
 
@@ -116,6 +116,14 @@ export class Charger {
 
   public setPower(amps?: number, volts?: number): void {
     this.client.setPower(amps, volts);
+  }
+
+  public async localStart(connectorId = 1, idTag = 'LOCALTAG'): Promise<LocalStartResult> {
+    return this.client.localStart(connectorId, idTag);
+  }
+
+  public async stopConnector(connectorId = 1): Promise<LocalStopResult> {
+    return this.client.stopConnector(connectorId);
   }
 
   public async setStatus(status: ConnectorState, connectorId = 1): Promise<void> {

@@ -9,9 +9,10 @@ A production-ready **OCPP 1.6** charging station simulator library and server fo
 ## Status & Badges
 
 [![Tests](https://github.com/larsperceus/ev-charging-simulator/actions/workflows/test.yml/badge.svg)](https://github.com/larsperceus/ev-charging-simulator/actions/workflows/test.yml)
-[![npm version](https://img.shields.io/npm/v/ev-charging-simulator.svg)](https://www.npmjs.com/package/ev-charging-simulator)
-[![Node.js Version](https://img.shields.io/node/v/ev-charging-simulator.svg)](https://nodejs.org/)
-[![License](https://img.shields.io/npm/l/ev-charging-simulator.svg)](LICENSE)
+[![npm version](https://img.shields.io/npm/v/@larsperceus/ev-charging-simulator.svg)](https://www.npmjs.com/package/@larsperceus/ev-charging-simulator)
+[![Node.js Version](https://img.shields.io/node/v/@larsperceus/ev-charging-simulator.svg)](https://nodejs.org/)
+[![License](https://img.shields.io/npm/l/@larsperceus/ev-charging-simulator.svg)](LICENSE)
+[![GitHub Package](https://img.shields.io/badge/github%20packages-%40larsperceus%2Fev--charging--simulator-blue?logo=github)](https://github.com/larsperceus/ev-charging-simulator/pkgs/npm/ev-charging-simulator)
 [![codecov](https://codecov.io/gh/larsperceus/ev-charging-simulator/branch/main/graph/badge.svg)](https://codecov.io/gh/larsperceus/ev-charging-simulator)
 [![Security Status](https://github.com/larsperceus/ev-charging-simulator/actions/workflows/security.yml/badge.svg)](https://github.com/larsperceus/ev-charging-simulator/actions/workflows/security.yml)
 
@@ -26,6 +27,7 @@ A production-ready **OCPP 1.6** charging station simulator library and server fo
 - [API Reference](#api-reference)
 - [Usage Examples](#usage-examples)
 - [Configuration](#configuration)
+- [OCPP Traffic Observer](#ocpp-traffic-observer)
 - [Error Handling](#error-handling)
 - [Troubleshooting](#troubleshooting)
 - [Testing](#testing)
@@ -55,13 +57,13 @@ A production-ready **OCPP 1.6** charging station simulator library and server fo
 ## Installation
 
 ```bash
-npm install ev-charging-simulator
+npm install @larsperceus/ev-charging-simulator
 ```
 
 Or with yarn:
 
 ```bash
-yarn add ev-charging-simulator
+yarn add @larsperceus/ev-charging-simulator
 ```
 
 ---
@@ -71,7 +73,7 @@ yarn add ev-charging-simulator
 ### Minimal Example
 
 ```typescript
-import { Charger } from 'ev-charging-simulator';
+import { Charger } from '@larsperceus/ev-charging-simulator';
 
 const charger = new Charger({
   evseId: 'EVSE-ANON-1',
@@ -91,7 +93,7 @@ await charger.disconnect();
 ### With Full Configuration
 
 ```typescript
-import { Charger, ConnectorState } from 'ev-charging-simulator';
+import { Charger, ConnectorState } from '@larsperceus/ev-charging-simulator';
 
 const charger = new Charger(
   {
@@ -158,7 +160,7 @@ await charger.shutdown();
 ### Connector States
 
 ```typescript
-import { ConnectorState } from 'ev-charging-simulator';
+import { ConnectorState } from '@larsperceus/ev-charging-simulator';
 
 type ConnectorState =
   | 'Available'   // Ready to charge
@@ -286,7 +288,7 @@ const {
 ### Example 1: Simulate Multiple Chargers from Config
 
 ```typescript
-import { loadChargersFromConfig } from 'ev-charging-simulator';
+import { loadChargersFromConfig } from '@larsperceus/ev-charging-simulator';
 
 // Load from JSON file
 const chargers = await loadChargersFromConfig('./chargers.json', {
@@ -331,7 +333,7 @@ await chargers[0].setStatus('Charging', 1);
 ### Example 2: Simulated Charging Flow
 
 ```typescript
-import { Charger, ConnectorState } from 'ev-charging-simulator';
+import { Charger, ConnectorState } from '@larsperceus/ev-charging-simulator';
 
 async function simulateChargingSession(charger: Charger) {
   // Step 1: Available
@@ -362,7 +364,7 @@ await charger.shutdown();
 ### Example 3: Error Handling and Reconnection
 
 ```typescript
-import { Charger } from 'ev-charging-simulator';
+import { Charger } from '@larsperceus/ev-charging-simulator';
 
 const charger = new Charger({
   evseId: 'RESILIENT-1',
@@ -445,6 +447,47 @@ const chargers = [
 ];
 
 const instances = createChargers(chargers);
+```
+
+---
+
+## OCPP Traffic Observer
+
+Every OCPP message sent and received is broadcast in real-time so QA tools can watch the wire without a proxy.
+
+### WebSocket endpoint (server mode)
+
+Connect to `ws://localhost:3000/ws/traffic` while the server is running. Each message is a JSON object:
+
+```json
+{
+  "ts": "2026-06-19T12:00:00.000Z",
+  "evseId": "EVSE-001",
+  "dir": "send",
+  "msgType": 2,
+  "action": "StartTransaction",
+  "msgId": "5",
+  "payload": { "connectorId": 1, "idTag": "ABC123", "meterStart": 1234 }
+}
+```
+
+| Field | Values | Description |
+|-------|--------|-------------|
+| `dir` | `send` / `recv` | CP→CSMS or CSMS→CP |
+| `msgType` | `2` / `3` / `4` | CALL / CALLRESULT / CALLERROR |
+| `action` | string | Present on CALL frames only |
+
+Filter to a single charger: `ws://localhost:3000/ws/traffic?evseId=EVSE-001`
+
+### Programmatic (library mode)
+
+```typescript
+import { trafficBus } from '@larsperceus/ev-charging-simulator';
+import type { TrafficEvent } from '@larsperceus/ev-charging-simulator';
+
+trafficBus.on('message', (event: TrafficEvent) => {
+  console.log(`[${event.dir}] ${event.evseId} ${event.action ?? event.msgType} ${event.msgId}`);
+});
 ```
 
 ---

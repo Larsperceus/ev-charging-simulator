@@ -16,6 +16,7 @@ function createClient() {
     1
   ) as any;
 
+  client.connected = true;
   client.safeCall = async () => undefined;
   client.sendCall = async (action: string, payload: any) => {
     if (action === 'Authorize') return { idTagInfo: { status: 'Accepted' } };
@@ -59,7 +60,7 @@ describe('OcppClient state transitions', () => {
     expect(stateAfterStart.transactionId).toBe(42);
 
     const stopped = await client.stopConnector(1);
-    expect(stopped).toBe(true);
+    expect(stopped.ok).toBe(true);
     const stateAfterStop = client.getStateAll()[0];
     expect(stateAfterStop.state).toBe('Available');
     expect(stateAfterStop.transactionId).toBe(null);

@@ -16,7 +16,7 @@ type BaseClientEntry = {
     getPower: () => { amps: number; volts: number; watts: number };
     getHeartbeatPeriodMs: () => number;
     getLastMessageAt: () => number | null;
-    getStateAll: () => unknown[];
+    getStateAll: () => Array<{ id: number; state: string; errorCode: string; transactionId: number | null }>;
   };
   bootOpts: unknown;
   csmsUrl: string;
@@ -65,7 +65,7 @@ export function registerHealthInfoStatusRoutes<TEntry extends BaseClientEntry>(p
       return {
         chargerId: e.evseId,
         evseId: e.evseId,
-        ...((e.bootOpts as Record<string, unknown>) ?? {}),
+        ...(e.bootOpts as Record<string, unknown> ?? {}),
         csmsUrl: e.csmsUrl,
         connectors: e.connectors,
         location: e.location,

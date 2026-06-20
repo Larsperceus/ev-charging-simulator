@@ -1,5 +1,5 @@
 import express from 'express';
-import type { ConnectorState, ChargePointErrorCode } from '../../ocppClient.js';
+import type { ConnectorState, ChargePointErrorCode, StopTransactionReason } from '../../ocppClient.js';
 
 type ParserInteger = (
   value: unknown,
@@ -21,7 +21,7 @@ export function registerOcppCpRoutes<TEntry extends {
     sendHeartbeat(): Promise<unknown>;
     authorize(idTag: string): Promise<string>;
     startTransaction(connectorId: number, idTag: string): Promise<number | null>;
-    stopTransaction(connectorId: number, reason: 'Remote' | 'Local' | 'Error'): Promise<boolean>;
+    stopTransaction(connectorId: number, reason: StopTransactionReason): Promise<boolean>;
     sendMeterValues(connectorId: number, transactionId?: number): Promise<unknown>;
     sendStatusNotification(connectorId: number, status: ConnectorState, errorCode?: ChargePointErrorCode): Promise<unknown>;
     dataTransfer(vendorId: string, messageId?: string, data?: string): Promise<unknown>;
@@ -110,7 +110,7 @@ export function registerOcppCpRoutes<TEntry extends {
         : parseRequiredString(reason, 'reason', res);
     if (parsedReason === null) return;
     try {
-      const stopped = await entry.client.stopTransaction(parsedConnectorId ?? 1, parsedReason as any);
+      const stopped = await entry.client.stopTransaction(parsedConnectorId ?? 1, parsedReason as StopTransactionReason);
       res.json({ ok: stopped });
     } catch (error) {
       sendUnexpectedError(res, 'POST /ocpp/cp/stop-transaction', error);
@@ -147,7 +147,7 @@ export function registerOcppCpRoutes<TEntry extends {
         : parseRequiredString(errorCode, 'errorCode', res);
     if (parsedErrorCode === null) return;
     try {
-      const result = await entry.client.sendStatusNotification(parsedConnectorId ?? 1, parsedStatus as ConnectorState, parsedErrorCode as any);
+      const result = await entry.client.sendStatusNotification(parsedConnectorId ?? 1, parsedStatus as ConnectorState, parsedErrorCode as ChargePointErrorCode | undefined);
       res.json({ ok: true, result });
     } catch (error) {
       sendUnexpectedError(res, 'POST /ocpp/cp/status-notification', error);
@@ -185,7 +185,7 @@ export function registerOcppCpRoutes<TEntry extends {
     const parsedStatus = parseRequiredString(status, 'status', res);
     if (parsedStatus === null) return;
     try {
-      const result = await entry.client.firmwareStatusNotification(parsedStatus as any);
+      const result = await entry.client.firmwareStatusNotification(parsedStatus as 'Downloading' | 'Downloaded' | 'Installing' | 'Installed' | 'DownloadFailed' | 'InstallationFailed');
       res.json({ ok: true, result });
     } catch (error) {
       sendUnexpectedError(res, 'POST /ocpp/cp/firmware-status', error);
@@ -199,7 +199,7 @@ export function registerOcppCpRoutes<TEntry extends {
     const parsedStatus = parseRequiredString(status, 'status', res);
     if (parsedStatus === null) return;
     try {
-      const result = await entry.client.diagnosticsStatusNotification(parsedStatus as any);
+      const result = await entry.client.diagnosticsStatusNotification(parsedStatus as 'Idle' | 'Uploading' | 'Uploaded' | 'UploadFailed');
       res.json({ ok: true, result });
     } catch (error) {
       sendUnexpectedError(res, 'POST /ocpp/cp/diagnostics-status', error);

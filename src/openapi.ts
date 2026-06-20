@@ -77,6 +77,10 @@ export const openApiSpec = {
       name: 'Diagnostics',
       description: 'Operational introspection and runtime diagnostics.',
     },
+    {
+      name: 'Traffic',
+      description: 'Real-time OCPP message observation via WebSocket or programmatic event bus.',
+    },
   ],
   paths: {
     '/openapi.json': {
@@ -754,6 +758,55 @@ export const openApiSpec = {
           '200': { description: 'Cancel reservation result' },
           '400': { $ref: '#/components/responses/BadRequest' },
           '404': { $ref: '#/components/responses/NotFound' },
+        },
+      },
+    },
+    '/ws/traffic': {
+      'x-websocket': true,
+      get: {
+        tags: ['Traffic'],
+        summary: 'OCPP traffic WebSocket stream',
+        operationId: 'wsTrafficStream',
+        description: `Upgrade to a WebSocket connection to receive real-time OCPP message events.
+
+Each message is a JSON-serialised \`TrafficEvent\`:
+\`\`\`json
+{
+  "ts":      "2024-01-15T10:00:00.000Z",
+  "evseId":  "EVSE-001",
+  "dir":     "send" | "recv",
+  "msgType": 2 | 3 | 4,
+  "action":  "BootNotification",
+  "msgId":   "uuid-...",
+  "payload": {}
+}
+\`\`\`
+
+Filter by EVSE with the \`evseId\` query parameter: \`ws://host/ws/traffic?evseId=EVSE-001\``,
+        parameters: [
+          {
+            name: 'evseId',
+            in: 'query',
+            required: false,
+            description: 'Filter events to a single EVSE. Omit to receive all charger traffic.',
+            schema: { type: 'string' },
+          },
+          {
+            name: 'Connection',
+            in: 'header',
+            required: true,
+            schema: { type: 'string', enum: ['Upgrade'] },
+          },
+          {
+            name: 'Upgrade',
+            in: 'header',
+            required: true,
+            schema: { type: 'string', enum: ['websocket'] },
+          },
+        ],
+        responses: {
+          '101': { description: 'Switching Protocols – WebSocket connection established' },
+          '400': { description: 'Bad Request – not a WebSocket upgrade request' },
         },
       },
     },

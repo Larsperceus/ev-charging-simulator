@@ -31,7 +31,14 @@
         "Diagnostics",
         "RemoteTrigger",
         "Reservation"
-      ]
+      ],
+      "discovery": {
+        "mdns": {
+          "serviceType": "_evse._tcp.local",
+          "instancePrefix": "",
+          "vendor": "Virtual EVSE"
+        }
+      }
     },
     "alfen": {
       "name": "alfen",
@@ -70,7 +77,14 @@
         "SmartCharging",
         "Diagnostics",
         "RemoteTrigger"
-      ]
+      ],
+      "discovery": {
+        "mdns": {
+          "serviceType": "_alfen._tcp.local",
+          "instancePrefix": "",
+          "vendor": "Alfen"
+        }
+      }
     },
     "peblar": {
       "name": "peblar",
@@ -102,7 +116,53 @@
         "Diagnostics",
         "RemoteTrigger",
         "Reservation"
-      ]
+      ],
+      "discovery": {
+        "mdns": {
+          "serviceType": "_http._tcp.local",
+          "instancePrefix": "pblr-",
+          "vendor": "Peblar"
+        }
+      }
+    },
+    "etrel": {
+      "name": "etrel",
+      "allowedActions": [
+        "GetConfiguration",
+        "ChangeConfiguration",
+        "ChangeAvailability",
+        "ClearCache",
+        "RemoteStartTransaction",
+        "RemoteStopTransaction",
+        "Reset",
+        "UnlockConnector",
+        "UpdateFirmware",
+        "GetDiagnostics",
+        "TriggerMessage",
+        "ReserveNow",
+        "CancelReservation"
+      ],
+      "config": {
+        "mode": "lenient",
+        "allowedKeys": []
+      },
+      "firmware": {
+        "rebootAfterInstall": true
+      },
+      "supportedProfiles": [
+        "Core",
+        "FirmwareManagement",
+        "Diagnostics",
+        "RemoteTrigger",
+        "Reservation"
+      ],
+      "discovery": {
+        "mdns": {
+          "serviceType": "_etrel._tcp.local",
+          "instancePrefix": "",
+          "vendor": "Etrel"
+        }
+      }
     }
   }
 }

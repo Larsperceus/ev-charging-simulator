@@ -44,6 +44,7 @@ describe('stress', () => {
     for (let i = 1; i <= 150; i += 1) {
       const client = createClient(`EVSE-TX-${i}`, 2) as any;
 
+      client.connected = true;
       client.startMeterLoop = () => undefined;
       client.stopMeterLoop = () => undefined;
       client.safeCall = async () => undefined;
@@ -73,8 +74,8 @@ describe('stress', () => {
     for (const client of clients) {
       const stop1 = await client.stopConnector(1);
       const stop2 = await client.stopConnector(2);
-      expect(stop1).toBe(true);
-      expect(stop2).toBe(true);
+      expect(stop1.ok).toBe(true);
+      expect(stop2.ok).toBe(true);
     }
 
     for (const client of clients) {

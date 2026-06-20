@@ -4,6 +4,12 @@ import { logger } from './utils/logger.js';
 
 type UnknownRecord = Record<string, unknown>;
 
+export type MdnsDiscoveryProfile = {
+  serviceType: string;
+  instancePrefix: string;
+  vendor: string;
+};
+
 export type BrandProfile = {
   name: string;
   allowedActions: string[];
@@ -15,6 +21,9 @@ export type BrandProfile = {
     rebootAfterInstall: boolean;
   };
   supportedProfiles: string[];
+  discovery?: {
+    mdns: MdnsDiscoveryProfile;
+  };
 };
 
 export type BrandProfilesConfig = {
@@ -38,10 +47,26 @@ function asStringArray(value: unknown): string[] {
   return [...unique];
 }
 
+const DEFAULT_MDNS: MdnsDiscoveryProfile = {
+  serviceType: '_evse._tcp.local',
+  instancePrefix: '',
+  vendor: 'Virtual EVSE',
+};
+
+function normalizeMdnsProfile(raw: unknown, brandKey: string): MdnsDiscoveryProfile {
+  if (!isRecord(raw)) return { ...DEFAULT_MDNS, vendor: brandKey };
+  return {
+    serviceType: typeof raw.serviceType === 'string' && raw.serviceType.trim() ? raw.serviceType.trim() : DEFAULT_MDNS.serviceType,
+    instancePrefix: typeof raw.instancePrefix === 'string' ? raw.instancePrefix : '',
+    vendor: typeof raw.vendor === 'string' && raw.vendor.trim() ? raw.vendor.trim() : brandKey,
+  };
+}
+
 function normalizeBrandProfile(rawProfile: unknown, brandKey: string): BrandProfile {
   const profile = isRecord(rawProfile) ? rawProfile : {};
   const configRaw = isRecord(profile.config) ? profile.config : {};
   const firmwareRaw = isRecord(profile.firmware) ? profile.firmware : {};
+  const discoveryRaw = isRecord(profile.discovery) ? profile.discovery : {};
 
   const mode = configRaw.mode === 'strict' ? 'strict' : 'lenient';
   const allowedActions = asStringArray(profile.allowedActions);
@@ -59,6 +84,9 @@ function normalizeBrandProfile(rawProfile: unknown, brandKey: string): BrandProf
       rebootAfterInstall: typeof firmwareRaw.rebootAfterInstall === 'boolean' ? firmwareRaw.rebootAfterInstall : true,
     },
     supportedProfiles,
+    discovery: {
+      mdns: normalizeMdnsProfile(discoveryRaw.mdns, brandKey),
+    },
   };
 }
 
@@ -98,8 +126,8 @@ export async function loadBrandProfiles(): Promise<BrandProfilesConfig | null> {
       return null;
     }
     return normalized;
-  } catch (error: any) {
-    if (error?.code === 'ENOENT') return null;
+  } catch (error: unknown) {
+    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') return null;
     logger.warn(`Failed to load brand-profiles.json: ${error instanceof Error ? error.message : String(error)}`);
     return null;
   }

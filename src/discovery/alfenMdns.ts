@@ -1,40 +1,51 @@
 import multicastDns from 'multicast-dns';
+import type { Answer } from 'dns-packet';
 import { logger } from '../utils/logger.js';
 
 type MdnsController = {
   stop: () => void;
 };
 
-function sanitizeLabel(value: string): string {
+function sanitizeLabel(value: string, fallback: string): string {
   return value
     .toLowerCase()
     .replace(/[^a-z0-9-]/g, '-')
     .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '') || 'alfen-virtual';
+    .replace(/^-|-$/g, '') || fallback;
 }
 
-export function startAlfenMdns(params: {
+export function startMdns(params: {
   chargerId: string;
   chargerIds?: string[];
   port: number;
   firmwareVersion?: string;
   model?: string;
   getLanIps: () => string[];
+  serviceType?: string;
+  instancePrefix?: string;
+  vendor?: string;
 }): MdnsController {
-  const serviceType = '_alfen._tcp.local';
+  const serviceType = params.serviceType ?? '_alfen._tcp.local';
+  const instancePrefix = params.instancePrefix ?? '';
+  const vendor = params.vendor ?? 'Alfen';
+  const fallbackLabel = `${instancePrefix}virtual`.replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'virtual-evse';
+
   const identities = (params.chargerIds && params.chargerIds.length > 0)
     ? params.chargerIds
     : [params.chargerId];
 
   const instances = identities.map(id => {
-    const serviceInstanceLabel = sanitizeLabel(id);
+    const label = `${instancePrefix}${sanitizeLabel(id, fallbackLabel)}`;
     return {
       id,
-      instanceName: `${serviceInstanceLabel}._alfen._tcp.local`,
-      hostName: `${serviceInstanceLabel}.local`,
+      instanceName: `${label}.${serviceType}`,
+      hostName: `${label}.local`,
     };
   });
 
+  // loopback:true lets the process receive its own multicast packets (useful in
+  // container environments where the loopback interface is the only active one).
+  // On a real LAN, multicast:true ensures announcements reach other hosts.
   const mdns = multicastDns({
     ip: '224.0.0.251',
     port: 5353,
@@ -47,7 +58,7 @@ export function startAlfenMdns(params: {
     const ips = params.getLanIps();
     const primaryIp = ips[0];
 
-    const records: any[] = [];
+    const records: Answer[] = [];
     for (const instance of instances) {
       records.push({
         name: serviceType,
@@ -72,7 +83,7 @@ export function startAlfenMdns(params: {
         ttl: 120,
         data: [
           `id=${instance.id}`,
-          'vendor=Alfen',
+          `vendor=${vendor}`,
           `model=${params.model ?? 'Virtual EVSE'}`,
           `firmware=${params.firmwareVersion ?? ''}`,
           `device=/device.xml?evseId=${encodeURIComponent(instance.id)}`,
@@ -121,7 +132,7 @@ export function startAlfenMdns(params: {
   answerDiscovery();
   const heartbeat = setInterval(answerDiscovery, 10000);
 
-  logger.info(`mDNS discovery active for ${serviceType} with ${instances.length} EVSE identity record(s)`);
+  logger.info(`mDNS discovery active for ${serviceType} (${vendor}) with ${instances.length} EVSE identity record(s)`);
 
   return {
     stop: () => {
@@ -133,3 +144,6 @@ export function startAlfenMdns(params: {
     },
   };
 }
+
+/** @deprecated Use startMdns */
+export const startAlfenMdns = startMdns;

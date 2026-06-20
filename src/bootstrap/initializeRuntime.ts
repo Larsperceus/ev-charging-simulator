@@ -1,6 +1,6 @@
 import { logger } from '../utils/logger.js';
 import { loadEvseConfig } from '../evseConfig.js';
-import { loadBrandProfiles, selectBrandProfile } from '../brandProfiles.js';
+import { loadBrandProfiles, selectBrandProfile, type BrandProfile } from '../brandProfiles.js';
 import { parseBrandArg, parseEvseIds } from './cliArgs.js';
 import { buildClientsFromConfig } from './clientFactory.js';
 import type { BootOptions } from '../ocppClient.js';
@@ -17,6 +17,7 @@ export type RuntimeInitialization = {
   connectors: number;
   defaultEvseId: string;
   brandName: string | undefined;
+  brandProfile: BrandProfile | null;
   apiLoginPasswordProtected: boolean;
   apiLoginPassword: string | undefined;
   entries: ReturnType<typeof buildClientsFromConfig>;
@@ -314,6 +315,7 @@ export async function initializeRuntime(): Promise<RuntimeInitialization> {
     connectors,
     defaultEvseId: evseEntries[0]?.evseId ?? containerId,
     brandName,
+    brandProfile: logBrandProfile,
     apiLoginPasswordProtected,
     apiLoginPassword,
     entries,

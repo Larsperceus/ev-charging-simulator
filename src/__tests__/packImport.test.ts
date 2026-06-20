@@ -5,8 +5,10 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { execSync } from 'node:child_process';
 
+const hasDist = fs.existsSync(path.join(process.cwd(), 'dist', 'public.js'));
+
 describe('npm package tarball integration', () => {
-  it('can generate package tarball and import it', async () => {
+  it.skipIf(!hasDist)('can generate package tarball and import it', async () => {
     const cwd = process.cwd();
     const tarball = execSync('npm pack --pack-destination . --silent', { cwd })
       .toString().trim();
@@ -17,7 +19,7 @@ describe('npm package tarball integration', () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ev-charge-sim-'));
     execSync(`npm install --no-save "${tarballPath}"`, { cwd: tmpDir, stdio: 'pipe' });
 
-    const imported = await import(pathToFileURL(path.join(tmpDir, 'node_modules', 'ev-charging-simulator', 'dist', 'public.js')).href);
+    const imported = await import(pathToFileURL(path.join(tmpDir, 'node_modules', '@larsperceus', 'ev-charging-simulator', 'dist', 'public.js')).href);
     expect(typeof imported.Charger).toBe('function');
     expect(typeof imported.createChargers).toBe('function');
     expect(typeof imported.loadChargersFromConfig).toBe('function');

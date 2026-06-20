@@ -16,7 +16,7 @@ type ParserString = (
 export function registerOcppCsRoutes<TEntry extends {
   evseId: string;
   client: {
-    applyGetConfiguration(payload: { key?: string[] }): { configurationKey: unknown[]; unknownKey: string[] };
+    applyGetConfiguration(payload: { key?: string[] }): { configurationKey: Array<{ key: string; readonly: boolean; value: string }>; unknownKey: string[] };
     applyChangeConfiguration(payload: { key: string; value: string }): { status: string };
     applyChangeAvailability(payload: { connectorId: number; type: 'Operative' | 'Inoperative' }): { status: string };
     applyClearCache(): { status: string };
@@ -25,10 +25,10 @@ export function registerOcppCsRoutes<TEntry extends {
     applyRemoteStop(payload: { transactionId?: number; connectorId?: number }): Promise<{ status: string }>;
     applyReset(payload: { type?: 'Soft' | 'Hard' }): Promise<{ status: string }>;
     applyUnlockConnector(payload: { connectorId: number }): { status: string };
-    applyUpdateFirmware(payload: unknown): { status: string; error?: string; message?: string };
-    applyGetDiagnostics(payload: unknown): { status: string; fileName?: string; error?: string; message?: string };
-    applyReserveNow(payload: unknown): { status: string; error?: string; message?: string };
-    applyCancelReservation(payload: unknown): { status: string; error?: string; message?: string };
+    applyUpdateFirmware(payload: { location: string; retrieveDate: string; retries?: number; retryInterval?: number; checksum?: string; version?: string }): { status: string; error?: string; message?: string };
+    applyGetDiagnostics(payload: { location: string; retries?: number; retryInterval?: number; startTime?: string; stopTime?: string }): { status: string; fileName?: string; error?: string; message?: string };
+    applyReserveNow(payload: { connectorId: number; expiryDate: string; idTag: string; reservationId: number }): { status: string; error?: string; message?: string };
+    applyCancelReservation(payload: { reservationId: number }): { status: string; error?: string; message?: string };
   };
 }>(params: {
   app: express.Express;

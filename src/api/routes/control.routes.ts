@@ -24,11 +24,11 @@ type SendUnexpectedError = (res: express.Response, route: string, error: unknown
 export function registerControlRoutes<TEntry extends {
   evseId: string;
   client: {
-    localStart(connectorId: number, idTag: string): Promise<void>;
-    stopConnector(connectorId: number): Promise<boolean>;
+    localStart(connectorId: number, idTag: string): Promise<{ ok: boolean; reason?: string; transactionId?: number | null }>;
+    stopConnector(connectorId: number): Promise<{ ok: boolean; reason?: string }>;
     setConnectorStatus(connectorId: number, state: ConnectorState): Promise<void>;
     setPower(amps?: number, volts?: number): void;
-    getPower(): unknown;
+    getPower(): { amps: number; volts: number; watts: number };
     disconnectWs(): Promise<void>;
     reconnectWs(): Promise<void>;
     localReset(type: 'Soft' | 'Hard'): Promise<void>;
@@ -65,8 +65,8 @@ export function registerControlRoutes<TEntry extends {
     const entry = requireClientEntry(req, res);
     if (!entry) return;
     try {
-      await entry.client.localStart(parsedConnectorId ?? 1, parsedIdTag);
-      res.status(200).json({ ok: true });
+      const result = await entry.client.localStart(parsedConnectorId ?? 1, parsedIdTag);
+      res.status(result.ok ? 200 : 422).json(result);
     } catch (error) {
       sendUnexpectedError(res, 'POST /control/start', error);
     }
@@ -79,8 +79,8 @@ export function registerControlRoutes<TEntry extends {
     const entry = requireClientEntry(req, res);
     if (!entry) return;
     try {
-      const stopped = await entry.client.stopConnector(parsedConnectorId ?? 1);
-      res.status(stopped ? 200 : 204).json({ ok: stopped });
+      const result = await entry.client.stopConnector(parsedConnectorId ?? 1);
+      res.status(result.ok ? 200 : 422).json(result);
     } catch (error) {
       sendUnexpectedError(res, 'POST /control/stop', error);
     }
@@ -160,8 +160,8 @@ export function registerControlRoutes<TEntry extends {
 
       for (const connector of connectors) {
         if (connector.transactionId) {
-          const success = await entry.client.stopConnector(connector.id);
-          stopped.push({ connectorId: connector.id, stopped: success });
+          const result = await entry.client.stopConnector(connector.id);
+          stopped.push({ connectorId: connector.id, stopped: result.ok });
         }
       }
 

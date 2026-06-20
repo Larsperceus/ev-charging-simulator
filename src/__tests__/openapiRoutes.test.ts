@@ -30,6 +30,8 @@ function collectOpenApiSignatures(): Set<string> {
   const allowedMethods = ['get', 'post', 'put', 'patch', 'delete'];
 
   for (const [path, pathItem] of Object.entries(openApiSpec.paths as Record<string, any>)) {
+    // Skip WebSocket-only paths — they're not Express HTTP routes
+    if (pathItem?.['x-websocket']) continue;
     for (const method of allowedMethods) {
       if (pathItem?.[method]) signatures.add(`${method.toUpperCase()} ${path}`);
     }

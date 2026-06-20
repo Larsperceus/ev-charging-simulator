@@ -1,7 +1,8 @@
 import AjvModule from 'ajv';
-import type { JSONSchemaType } from 'ajv';
+import type { JSONSchemaType, Options as AjvOptions, ValidateFunction } from 'ajv';
 
-const AjvCtor = AjvModule as unknown as new (options?: any) => any;
+type AjvCompiler = { compile(schema: unknown): ValidateFunction };
+const AjvCtor = AjvModule as unknown as new (options?: AjvOptions) => AjvCompiler;
 const ajv = new AjvCtor({ allErrors: true, allowUnionTypes: true });
 
 type ChangeAvailability = { connectorId: number; type: 'Operative' | 'Inoperative' };
@@ -176,15 +177,14 @@ const validators = {
 type ValidationResult = { valid: true } | { valid: false; message: string };
 
 export function validateCsCall(action: string, payload: unknown): ValidationResult {
-  const validator = (validators as Record<string, (data: unknown) => boolean>)[action];
-  if (!validator) {
-    return { valid: true };
-  }
+  const validator = (validators as Record<string, ValidateFunction>)[action];
+  if (!validator) return { valid: true };
 
   const ok = validator(payload);
   if (ok) return { valid: true };
 
-  const errors = (validator as any).errors as Array<{ instancePath?: string; message?: string }> | null;
-  const message = errors?.[0]?.message ? `${action} ${errors[0].message}` : `${action} payload invalid`;
+  const message = validator.errors?.[0]?.message
+    ? `${action} ${validator.errors[0].message}`
+    : `${action} payload invalid`;
   return { valid: false, message };
 }

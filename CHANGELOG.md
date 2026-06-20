@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-06-19
+
+### Added
+- **OCPP traffic observer**: `trafficBus` EventEmitter (module singleton) emits every sent/received OCPP frame. Subscribe programmatically or connect to the new `/ws/traffic` WebSocket endpoint for real-time inspection. Supports `?evseId=` query parameter to filter to a single charger.
+- **`localStart()` / `stopConnector()` on `Charger` facade**: Both methods are now accessible from the public `Charger` class (previously internal to `OcppClient` only).
+- **Typed results for `localStart`/`stopConnector`**: Methods now return `LocalStartResult` and `LocalStopResult` discriminated unions instead of `void`/`boolean`. The REST API responds 422 with a `reason` field on failure.
+- **Optional API authentication**: Set `API_SECRET` env var to require `Authorization: Bearer <secret>` on all write endpoints (GET/HEAD/OPTIONS and `/docs` are exempt).
+- **OpenAPI `/ws/traffic` path**: Traffic WebSocket endpoint documented in the OpenAPI spec with filter parameter.
+- **`prepublishOnly` script**: `npm run build && npm test` runs automatically before every publish to prevent stale or broken builds reaching the registry.
+- Exported `LocalStartResult` and `LocalStopResult` types from the public package entrypoint.
+
+### Changed
+- **Package renamed** to `@larsperceus/ev-charging-simulator` (scoped npm name for verified badge and GitHub Packages dual-publishing).
+- **Publishing**: Releases now publish to both npm (with OIDC provenance attestation) and GitHub Packages via OIDC Trusted Publishers — no long-lived secrets required.
+- **`index.ts` refactored**: ACE compatibility layer (~500 LOC) extracted to `src/api/routes/aceCompat.routes.ts` with a typed `AceCompatState` / `AceCompatDeps` interface. `index.ts` reduced from ~1 100 to ~340 LOC.
+- **`.npmrc`** simplified — removed unknown config keys that triggered deprecation warnings.
+
+### Fixed
+- Security: upgraded `vitest` → v4.1.9 and `@vitest/coverage-v8` → v4.1.9, eliminating 5 vulnerabilities (2 moderate, 1 high, 2 critical) in the `esbuild`→`vite`→`vite-node`→`vitest` chain.
+- `packImport.test.ts`: test now skips gracefully when `dist/` does not exist locally (CI builds first, so CI still exercises the full import path).
+
 ## [1.0.6] - 2024-01-XX
 
 ### Added

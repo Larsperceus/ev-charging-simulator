@@ -10,6 +10,19 @@ import {
 } from './brandProfiles.js';
 import { FirmwareManager, FirmwareJob, FirmwareStatus } from './firmwareManager.js';
 import { parsePasswordChangeValue } from './utils/passwordParser.js';
+import { trafficBus, type TrafficEvent } from './trafficBus.js';
+
+export type LocalStartResult =
+  | { ok: true; transactionId: number | null }
+  | { ok: false; reason: 'not_connected' | 'connector_not_found' | 'already_charging' | 'reservation_conflict' | 'authorize_rejected' };
+
+export type LocalStopResult =
+  | { ok: true }
+  | { ok: false; reason: 'connector_not_found' | 'no_active_transaction' };
+
+export type StopTransactionReason =
+  | 'DeAuthorized' | 'EmergencyStop' | 'EVDisconnected' | 'HardReset'
+  | 'Local' | 'Other' | 'PowerLoss' | 'Reboot' | 'Remote' | 'SoftReset';
 
 export interface BootOptions {
   chargeBoxSerialNumber: string;
@@ -66,12 +79,14 @@ interface PowerModel {
   volts: number; // default 230
 }
 
-type CallFrame = [2, string, string, any];
-type CallResultFrame = [3, string, any];
-type CallErrorFrame = [4, string, string, string, any];
+type OcppPayload = Record<string, unknown>;
+type CallFrame = [2, string, string, OcppPayload];
+type CallResultFrame = [3, string, OcppPayload];
+type CallErrorFrame = [4, string, string, string, OcppPayload];
+type OcppFrame = CallFrame | CallResultFrame | CallErrorFrame;
 
 type PendingRequest = {
-  resolve: (payload: any) => void;
+  resolve: (payload: OcppPayload) => void;
   reject: (error: Error) => void;
   timeout: NodeJS.Timeout;
   action: string;
@@ -270,19 +285,21 @@ export class OcppClient {
 
         try {
           const bootResult = await this.sendCall('BootNotification', { ...this.bootOpts });
-          if (bootResult?.interval) {
-            this.heartbeatPeriod = bootResult.interval * 1000;
+          const negotiatedInterval = typeof bootResult.interval === 'number' ? bootResult.interval : null;
+          if (negotiatedInterval) {
+            this.heartbeatPeriod = negotiatedInterval * 1000;
             this.startHeartbeat();
-            this.log.info(`💓 Heartbeat negotiated → ${bootResult.interval}s`);
+            this.log.info(`💓 Heartbeat negotiated → ${negotiatedInterval}s`);
           }
           await this.safeCall('StatusNotification', this.statusPayload(1, ConnectorState.Available));
           if (this.resolveConnectPromise) {
             this.resolveConnectPromise();
           }
-        } catch (e: any) {
-          this.log.error(`❌ Boot failed: ${e.message}`);
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e);
+          this.log.error(`❌ Boot failed: ${msg}`);
           if (this.rejectConnectPromise) {
-            this.rejectConnectPromise(new Error(`Boot failed: ${e.message}`));
+            this.rejectConnectPromise(new Error(`Boot failed: ${msg}`));
           }
         } finally {
           this.resolveConnectPromise = null;
@@ -474,15 +491,25 @@ export class OcppClient {
     await this.performReboot(type);
   }
   private newId(): string { return (this.msgCounter++).toString(); }
-  private rawSend(frame: any[], label: string): void {
+  private rawSend(frame: OcppFrame, label: string): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) throw new Error(`WS not open – cannot send ${label}`);
     this.ws.send(JSON.stringify(frame));
     this.log.debug({ frame }, `📤 ${label}`);
     if (this.logTraffic) {
       this.log.info({ frame }, 'OCPP ->');
     }
+    const isCall = frame[0] === 2;
+    trafficBus.emit('message', {
+      ts: new Date().toISOString(),
+      evseId: this.chargerId,
+      dir: 'send',
+      msgType: frame[0],
+      action: isCall ? String(frame[2]) : undefined,
+      msgId: frame[1],
+      payload: isCall ? (frame as CallFrame)[3] : frame[0] === 4 ? (frame as CallErrorFrame)[4] : (frame as CallResultFrame)[2],
+    } satisfies TrafficEvent);
   }
-  private sendCall(action: string, payload: any, timeoutMs = 15000): Promise<any> {
+  private sendCall(action: string, payload: OcppPayload, timeoutMs = 15000): Promise<OcppPayload> {
     return new Promise((resolve, reject) => {
       const uniqueId = this.newId();
       const frame: CallFrame = [2, uniqueId, action, payload];
@@ -496,9 +523,9 @@ export class OcppClient {
       this.pending.set(uniqueId, {
         action,
         timeout: t,
-        resolve: (payload: any) => {
+        resolve: (result: OcppPayload) => {
           clearTimeout(t);
-          resolve(payload);
+          resolve(result);
         },
         reject: (error: Error) => {
           clearTimeout(t);
@@ -508,34 +535,34 @@ export class OcppClient {
 
       try {
         this.rawSend(frame, action);
-      } catch (err: any) {
+      } catch (err: unknown) {
         // If rawSend fails synchronously (WS not open), reject the pending request and the promise
         clearTimeout(t);
         this.pending.delete(uniqueId);
-        reject(err);
+        reject(err instanceof Error ? err : new Error(String(err)));
       }
     });
   }
-  private sendCallResult(uniqueId: string, payload: any, label: string) {
+  private sendCallResult(uniqueId: string, payload: OcppPayload, label: string) {
     try {
       const frame: CallResultFrame = [3, uniqueId, payload];
       this.rawSend(frame, label);
-    } catch (err: any) {
-      this.log.warn(`Failed to send CALLRESULT: ${err.message}`);
+    } catch (err: unknown) {
+      this.log.warn(`Failed to send CALLRESULT: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
-  private sendCallError(uniqueId: string, errorCode: string, errorDescription: string, errorDetails: any = {}) {
+  private sendCallError(uniqueId: string, errorCode: string, errorDescription: string, errorDetails: OcppPayload = {}) {
     try {
       const frame: CallErrorFrame = [4, uniqueId, errorCode, errorDescription, errorDetails];
       this.rawSend(frame, `${errorCode}.CALLERROR`);
-    } catch (err: any) {
-      this.log.warn(`Failed to send CALLERROR: ${err.message}`);
+    } catch (err: unknown) {
+      this.log.warn(`Failed to send CALLERROR: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
-  private isValidFrame(raw: any): raw is CallFrame | CallResultFrame | CallErrorFrame {
+  private isValidFrame(raw: unknown): raw is OcppFrame {
     return Array.isArray(raw) && raw.length >= 3 && typeof raw[0] === 'number';
   }
-  private validateCallPayload(action: string, payload: any): string | null {
+  private validateCallPayload(action: string, payload: unknown): string | null {
     const result = validateCsCall(action, payload);
     if (result.valid) return null;
     return result.message ?? 'Invalid payload';
@@ -550,21 +577,32 @@ export class OcppClient {
    * Incoming (CSMS → CP)
    * =========================== */
   private async handleIncoming(raw: string): Promise<void> {
-    let msg: any;
-    try { msg = JSON.parse(raw); } catch { this.log.error('❌ Bad JSON'); return; }
+    let parsed: unknown;
+    try { parsed = JSON.parse(raw); } catch { this.log.error('❌ Bad JSON'); return; }
     if (this.logTraffic) {
-      this.log.info({ frame: msg }, 'OCPP <-');
+      this.log.info({ frame: parsed }, 'OCPP <-');
     }
-    if (!this.isValidFrame(msg)) {
+    if (!this.isValidFrame(parsed)) {
       this.log.warn('⚠️ Invalid OCPP frame received');
       return;
     }
+    const msg = parsed;
+    const isCall = msg[0] === 2;
+    trafficBus.emit('message', {
+      ts: new Date().toISOString(),
+      evseId: this.chargerId,
+      dir: 'recv',
+      msgType: msg[0],
+      action: isCall ? String(msg[2]) : undefined,
+      msgId: msg[1],
+      payload: isCall ? (msg as CallFrame)[3] : msg[0] === 4 ? (msg as CallErrorFrame)[4] : (msg as CallResultFrame)[2],
+    } satisfies TrafficEvent);
     const type = msg[0];
 
     // CALLRESULT
     if (type === 3) {
       const uniqueId: string = msg[1];
-      const payload: any = msg[2];
+      const payload: OcppPayload = msg[2];
       const pending = this.pending.get(uniqueId);
       if (pending) {
         pending.resolve(payload);
@@ -594,7 +632,7 @@ export class OcppClient {
     if (type !== 2) return;
     const uniqueId = msg[1];
     const action = msg[2];
-    const payload: any = msg[3];
+    const payload: OcppPayload = (msg as CallFrame)[3];
 
     if (typeof uniqueId !== 'string' || typeof action !== 'string') {
       if (typeof uniqueId === 'string') {
@@ -620,11 +658,11 @@ export class OcppClient {
         break;
 
       case 'ChangeConfiguration':
-        this.handleChangeConfiguration(uniqueId, payload);
+        this.handleChangeConfiguration(uniqueId, payload as { key: string; value: string });
         break;
 
       case 'ChangeAvailability':
-        this.handleChangeAvailability(uniqueId, payload);
+        this.handleChangeAvailability(uniqueId, payload as { connectorId: number; type: 'Operative' | 'Inoperative' });
         break;
 
       case 'ClearCache':
@@ -632,7 +670,7 @@ export class OcppClient {
         break;
 
       case 'RemoteStartTransaction':
-        this.handleRemoteStart(uniqueId, payload);
+        this.handleRemoteStart(uniqueId, payload as { connectorId?: number; idTag: string });
         break;
 
       case 'Reset': {
@@ -647,31 +685,31 @@ export class OcppClient {
 
 
       case 'RemoteStopTransaction':
-        this.handleRemoteStop(uniqueId, payload);
+        this.handleRemoteStop(uniqueId, payload as { transactionId?: number; connectorId?: number });
         break;
 
       case 'UnlockConnector':
-        this.handleUnlockConnector(uniqueId, payload);
+        this.handleUnlockConnector(uniqueId, payload as { connectorId: number });
         break;
 
       case 'UpdateFirmware':
-        this.handleUpdateFirmware(uniqueId, payload);
+        this.handleUpdateFirmware(uniqueId, payload as { location: string; retrieveDate: string; retries?: number; retryInterval?: number });
         break;
 
       case 'GetDiagnostics':
-        this.handleGetDiagnostics(uniqueId, payload);
+        this.handleGetDiagnostics(uniqueId, payload as { location: string });
         break;
 
       case 'TriggerMessage':
-        this.handleTriggerMessage(uniqueId, payload);
+        this.handleTriggerMessage(uniqueId, payload as { requestedMessage: string; connectorId?: number });
         break;
 
       case 'ReserveNow':
-        this.handleReserveNow(uniqueId, payload);
+        this.handleReserveNow(uniqueId, payload as { connectorId: number; expiryDate: string; idTag: string; reservationId: number });
         break;
 
       case 'CancelReservation':
-        this.handleCancelReservation(uniqueId, payload);
+        this.handleCancelReservation(uniqueId, payload as { reservationId: number });
         break;
 
       default:
@@ -712,7 +750,7 @@ export class OcppClient {
       idTag: payload.idTag
     });
 
-    c.transactionId = startRes?.transactionId ?? null;
+    c.transactionId = typeof startRes.transactionId === 'number' ? startRes.transactionId : null;
     c.state = ConnectorState.Charging;
     this.stationState = ConnectorState.Charging;
     await this.safeCall('StatusNotification', this.statusPayload(connectorId, ConnectorState.Charging));
@@ -908,21 +946,23 @@ export class OcppClient {
     for (const c of this.connectors.values()) this.stopMeterLoop(c);
   }
 
-  private async safeCall(action: string, payload: any, timeoutMs = 8000) {
+  private async safeCall(action: string, payload: OcppPayload, timeoutMs = 8000) {
     try { await this.sendCall(action, payload, timeoutMs); }
-    catch (e: any) { this.log.warn(`${action} soft-failed: ${e.message}`); }
+    catch (e: unknown) { this.log.warn(`${action} soft-failed: ${e instanceof Error ? e.message : String(e)}`); }
   }
 
   /* ===========================
    * Public control helpers
    * =========================== */
-  public async localStart(connectorId = 1, idTag = 'LOCALTAG') {
+  public async localStart(connectorId = 1, idTag = 'LOCALTAG'): Promise<LocalStartResult> {
+    if (!this.connected) return { ok: false, reason: 'not_connected' };
     const c = this.connectors.get(connectorId);
-    if (!c || c.transactionId != null) return;
-    if (!this.canStartWithIdTag(c, idTag)) return;
+    if (!c) return { ok: false, reason: 'connector_not_found' };
+    if (c.transactionId != null) return { ok: false, reason: 'already_charging' };
+    if (!this.canStartWithIdTag(c, idTag)) return { ok: false, reason: 'reservation_conflict' };
 
     const authorizeStatus = await this.authorize(idTag);
-    if (authorizeStatus !== 'Accepted') return;
+    if (authorizeStatus !== 'Accepted') return { ok: false, reason: 'authorize_rejected' };
 
     c.idTag = idTag;
     c.state = ConnectorState.Preparing;
@@ -936,18 +976,20 @@ export class OcppClient {
       idTag
     });
 
-    c.transactionId = startRes?.transactionId ?? null;
+    c.transactionId = typeof startRes.transactionId === 'number' ? startRes.transactionId : null;
     c.state = ConnectorState.Charging;
     this.stationState = ConnectorState.Charging;
     await this.safeCall('StatusNotification', this.statusPayload(connectorId, ConnectorState.Charging));
     if (c.transactionId != null) this.startMeterLoop(c);
+    return { ok: true, transactionId: c.transactionId };
   }
 
-  public async stopConnector(connectorId = 1): Promise<boolean> {
+  public async stopConnector(connectorId = 1): Promise<LocalStopResult> {
     const c = this.connectors.get(connectorId);
-    if (!c || c.transactionId == null) return false;
+    if (!c) return { ok: false, reason: 'connector_not_found' };
+    if (c.transactionId == null) return { ok: false, reason: 'no_active_transaction' };
     await this.doStopConnector(c, 'Local');
-    return true;
+    return { ok: true };
   }
 
   public async setConnectorStatus(connectorId = 1, state: ConnectorState) {
@@ -987,7 +1029,7 @@ export class OcppClient {
   /* ===========================
    * Internal: doStopConnector
    * =========================== */
-  private async doStopConnector(c: Connector, reason: 'Remote' | 'Local' | 'Error') {
+  private async doStopConnector(c: Connector, reason: StopTransactionReason | 'Error') {
     this.stopMeterLoop(c);
 
     c.state = ConnectorState.Finishing;
@@ -1026,16 +1068,17 @@ export class OcppClient {
   public async authorize(idTag: string): Promise<'Accepted' | 'Rejected' | 'Invalid' | 'Blocked' | 'Expired' | 'ConcurrentTx'> {
     try {
       const res = await this.sendCall('Authorize', { idTag });
-      const status = res?.idTagInfo?.status ?? 'Rejected';
-      return status;
-    } catch (e: any) {
-      this.log.warn(`Authorize failed: ${e.message}`);
+      const tagInfo = res.idTagInfo as OcppPayload | undefined;
+      const status = String(tagInfo?.status ?? 'Rejected');
+      return status as 'Accepted' | 'Rejected' | 'Invalid' | 'Blocked' | 'Expired' | 'ConcurrentTx';
+    } catch (e: unknown) {
+      this.log.warn(`Authorize failed: ${e instanceof Error ? e.message : String(e)}`);
       return 'Rejected';
     }
   }
 
   public async dataTransfer(vendorId: string, messageId?: string, data?: string) {
-    const payload: any = { vendorId };
+    const payload: OcppPayload = { vendorId };
     if (messageId) payload.messageId = messageId;
     if (data) payload.data = data;
     return this.sendCall('DataTransfer', payload);
@@ -1084,7 +1127,7 @@ export class OcppClient {
     return this.connectors.get(connectorId)?.transactionId ?? null;
   }
 
-  public async stopTransaction(connectorId = 1, reason: 'Remote' | 'Local' | 'Error' = 'Remote') {
+  public async stopTransaction(connectorId = 1, reason: StopTransactionReason = 'Remote') {
     const c = this.connectors.get(connectorId);
     if (!c || c.transactionId == null) return false;
     await this.doStopConnector(c, reason);
@@ -1359,7 +1402,7 @@ export class OcppClient {
       idTag: payload.idTag
     });
 
-    c.transactionId = startRes?.transactionId ?? null;
+    c.transactionId = typeof startRes.transactionId === 'number' ? startRes.transactionId : null;
     c.state = ConnectorState.Charging;
     this.stationState = ConnectorState.Charging;
     await this.safeCall('StatusNotification', this.statusPayload(connectorId, ConnectorState.Charging));

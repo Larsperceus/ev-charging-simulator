@@ -45,7 +45,7 @@ jobs:
       - name: Publish to npm (with provenance)
         run: |
           sed -i '/@larsperceus:registry/d' .npmrc
-          npm config set registry https://registry.npmjs.org
+          unset NPM_CONFIG_USERCONFIG
           npm publish --provenance
 
       - name: Setup Node.js for GitHub Packages

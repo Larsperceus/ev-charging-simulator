@@ -1,56 +1,10 @@
-# EV Charging Simulator
+# ev-charging-simulator
 
-A production-ready **OCPP 1.6** charging station simulator library and server for testing and development of EV charging infrastructure.
-
-**Works both as a reusable npm library and as a standalone virtual charger server.**
-
----
-
-## Status & Badges
+OCPP 1.6 charging station simulator. Use it as a library in tests, or run it as a standalone server.
 
 [![Tests](https://github.com/larsperceus/ev-charging-simulator/actions/workflows/test.yml/badge.svg)](https://github.com/larsperceus/ev-charging-simulator/actions/workflows/test.yml)
 [![npm version](https://img.shields.io/npm/v/ev-charging-simulator.svg)](https://www.npmjs.com/package/ev-charging-simulator)
-[![Node.js Version](https://img.shields.io/node/v/ev-charging-simulator.svg)](https://nodejs.org/)
 [![License](https://img.shields.io/npm/l/ev-charging-simulator.svg)](LICENSE)
-[![GitHub Package](https://img.shields.io/badge/github%20packages-%40larsperceus%2Fev--charging--simulator-blue?logo=github)](https://github.com/larsperceus/ev-charging-simulator/pkgs/npm/ev-charging-simulator)
-[![codecov](https://codecov.io/gh/larsperceus/ev-charging-simulator/branch/main/graph/badge.svg)](https://codecov.io/gh/larsperceus/ev-charging-simulator)
-[![Security Status](https://github.com/larsperceus/ev-charging-simulator/actions/workflows/security.yml/badge.svg)](https://github.com/larsperceus/ev-charging-simulator/actions/workflows/security.yml)
-
----
-
-## Table of Contents
-
-- [Features](#features)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Core Concepts](#core-concepts)
-- [API Reference](#api-reference)
-- [Usage Examples](#usage-examples)
-- [Configuration](#configuration)
-- [OCPP Traffic Observer](#ocpp-traffic-observer)
-- [Error Handling](#error-handling)
-- [Troubleshooting](#troubleshooting)
-- [Testing](#testing)
-
----
-
-## Features
-
-✅ **Full OCPP 1.6 Support** — Complete chargepoint-to-CSMS message protocol implementation
-
-✅ **Async/Promise-Based** — Clean async/await API with proper connection lifecycle management
-
-✅ **Production-Ready** — Comprehensive error handling, reconnection logic, and timeout management
-
-✅ **Fleet Management** — Simulate hundreds of chargers from simple config files
-
-✅ **Flexible Configuration** — JSON files, objects, or programmatic setup
-
-✅ **ACE API Compatible** — Optional HTTP compatibility layer for existing integrations
-
-✅ **TypeScript** — Full type safety with exported interfaces and enums
-
-✅ **Tested** — 97+ unit and integration tests with 100% passing coverage
 
 ---
 
@@ -60,625 +14,496 @@ A production-ready **OCPP 1.6** charging station simulator library and server fo
 npm install ev-charging-simulator
 ```
 
-Or with yarn:
-
-```bash
-yarn add ev-charging-simulator
-```
+Requires Node.js 20 or later.
 
 ---
 
-## Quick Start
-
-### Minimal Example
+## Quick start
 
 ```typescript
 import { Charger } from 'ev-charging-simulator';
 
 const charger = new Charger({
-  evseId: 'EVSE-ANON-1',
-  connectors: 1,
-  csmsUrl: 'ws://your-csms-server:9000/ocpp1.6',
+  evseId: 'EVSE-001',
+  csmsUrl: 'ws://localhost:9000/ocpp1.6',
 });
 
-// Connect and authenticate with CSMS
 await charger.connect();
-
 console.log(charger.isConnected()); // true
 
-// Gracefully disconnect
-await charger.disconnect();
-```
-
-### With Full Configuration
-
-```typescript
-import { Charger, ConnectorState } from 'ev-charging-simulator';
-
-const charger = new Charger(
-  {
-    evseId: 'EVSE-DEMO-1',
-    connectors: 2,
-    csmsUrl: 'ws://localhost:9000/ocpp1.6',
-    power: { amps: 32, volts: 230 }, // 7.36 kW
-  },
-  {
-    bootOverrides: {
-      chargePointVendor: 'GenericVendor',
-      chargePointModel: 'GenericModel',
-      firmwareVersion: '1.0.0',
-    },
-  }
-);
-
-// Connect with timeout handling
-const connectPromise = charger.connect();
-await Promise.race([
-  connectPromise,
-  new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('Connection timeout')), 5000)
-  ),
-]);
-
-// Simulate connector status changes
-await charger.setStatus(ConnectorState.Available, 1);
-console.log(charger.getState()); // ConnectorState.Available
+await charger.shutdown();
 ```
 
 ---
 
-## Core Concepts
+## API
 
-### Charger Lifecycle
-
-```typescript
-const charger = new Charger({ evseId: 'EVSE-1', connectors: 1 });
-
-// 1. Initialize (constructor only, non-blocking)
-// 2. Connect to CSMS
-await charger.connect(); // Async: waits for boot notification
-
-// 3. Manage connector states
-await charger.setStatus(ConnectorState.Available);
-await charger.localStart(1, 'RFID_TAG');
-await charger.stopConnector(1);
-
-// 4. Disconnect gracefully
-await charger.disconnect();
-
-// 5. Complete shutdown
-await charger.shutdown();
-```
-
-### Connection States
-
-- **Disconnected** — Not connected to CSMS
-- **Connecting** — WebSocket open, boot notification pending
-- **Connected** — Boot notification received, ready for transactions
-- **Reconnecting** — Auto-reconnect with exponential backoff
-
-### Connector States
+### `new Charger(properties, options?)`
 
 ```typescript
-import { ConnectorState } from 'ev-charging-simulator';
+type ChargerProperties = {
+  evseId: string;           // required, unique identifier sent in BootNotification
+  csmsUrl?: string;         // OCPP WebSocket endpoint (falls back to options.csmsUrl, then CSMS_URL env, then ws://localhost:9000/ocpp1.6)
+  connectors?: number;      // number of connectors (default: 1)
+  power?: { amps: number; volts: number };
+  boot?: Partial<BootOptions>;
+  brand?: string;           // brand profile name for vendor-specific behaviour
+};
 
-type ConnectorState =
-  | 'Available'   // Ready to charge
-  | 'Preparing'   // Preparing for transaction
-  | 'Charging'    // Active transaction
-  | 'Finishing'   // Transaction ending
-  | 'Unavailable' // Offline/maintenance
-  | 'Faulted';    // Error condition
+type ChargerOptions = {
+  csmsUrl?: string;
+  connectors?: number;
+  bootOverrides?: Partial<BootOptions>;
+  brandProfile?: BrandProfile | null;
+  chargerPassword?: string;
+};
+
+type BootOptions = {
+  chargeBoxSerialNumber: string;
+  chargePointModel: string;
+  chargePointSerialNumber: string;
+  chargePointVendor: string;
+  firmwareVersion: string;
+};
 ```
+
+Properties on the constructor take precedence over options for fields that appear in both.
 
 ---
 
-## API Reference
+### Instance methods
 
-### Charger Constructor
+#### `connect(): Promise<void>`
 
-```typescript
-interface ChargerOptions {
-  csmsUrl?: string;                    // CSMS WebSocket URL (env: CSMS_URL)
-  connectors?: number;                 // Number of connectors (default: 1)
-  bootOverrides?: Partial<BootOptions>; // Override boot notification
-  brandProfile?: BrandProfile | null;  // Brand-specific behavior
-  chargerPassword?: string;            // ACE API password
-}
-
-new Charger(properties: ChargerProperties, options?: ChargerOptions)
-```
-
-### Core Methods
-
-#### `async connect(): Promise<void>`
-
-Establishes WebSocket connection and waits for boot notification acceptance.
+Opens the WebSocket, sends `BootNotification`, and waits for the CSMS to accept it. Resolves once the charger is ready. Rejects if the WebSocket cannot connect or if the boot is rejected.
 
 ```typescript
-try {
-  await charger.connect();
-} catch (err) {
-  console.error('Failed to connect:', err.message);
-}
+await charger.connect();
 ```
 
-**Behavior:**
-- Throws if CSMS is unreachable
-- Waits for BootNotification response
-- Automatically negotiates heartbeat interval
-- Sets up message/ping handlers
+The charger will automatically reconnect on disconnect (exponential backoff, 2 s to 30 s). Call `shutdown()` to stop reconnection.
 
-#### `async disconnect(): Promise<void>`
+#### `disconnect(): Promise<void>`
 
-Gracefully closes WebSocket connection without state cleanup.
+Closes the WebSocket without preventing reconnection. The charger will reconnect on the next attempt. Use `shutdown()` if you want to stop it permanently.
 
-```typescript
-await charger.disconnect();
-```
+#### `reconnect(): Promise<void>`
 
-#### `async shutdown(): Promise<void>`
+Forces a reconnection attempt immediately.
 
-Performs full cleanup: stops timers, rejects pending requests, closes connection.
+#### `shutdown(): Promise<void>`
 
-```typescript
-await charger.shutdown();
-```
-
-#### `async setStatus(status: ConnectorState, connectorId: number = 1): Promise<void>`
-
-Updates connector state and sends StatusNotification to CSMS.
-
-```typescript
-await charger.setStatus(ConnectorState.Charging, 1);
-```
-
-#### `async localStart(connectorId: number = 1, idTag: string = 'LOCALTAG'): Promise<void>`
-
-Initiates a local/simulated charge transaction.
-
-```typescript
-await charger.localStart(1, 'RFID_TAG_123');
-```
-
-#### `async stopConnector(connectorId: number = 1): Promise<boolean>`
-
-Stops active transaction on connector.
-
-```typescript
-const stopped = await charger.stopConnector(1);
-```
+Stops all timers, cancels all pending OCPP requests, and closes the WebSocket. Does not reconnect. Call this in `afterEach` / `afterAll` to avoid open handles in tests.
 
 #### `isConnected(): boolean`
 
-Check connection status (non-blocking).
-
-```typescript
-if (charger.isConnected()) {
-  console.log('Connected to CSMS');
-}
-```
+Returns `true` if the WebSocket is open and the `BootNotification` was accepted.
 
 #### `getState(): ConnectorState`
 
-Get current state of default connector (1).
+Returns the current station-level connector state.
 
 ```typescript
-const state = charger.getState();
+enum ConnectorState {
+  Unavailable = 'Unavailable',
+  Available   = 'Available',
+  Preparing   = 'Preparing',
+  Charging    = 'Charging',
+  Finishing   = 'Finishing',
+  Faulted     = 'Faulted',
+}
 ```
+
+#### `setStatus(status: ConnectorState, connectorId?: number): Promise<void>`
+
+Sends a `StatusNotification` to the CSMS and updates the internal state. `connectorId` defaults to `1`. If the connector has an active transaction and the new state is not `Charging`, the transaction is stopped first.
+
+```typescript
+await charger.setStatus(ConnectorState.Available);
+await charger.setStatus(ConnectorState.Faulted, 2);
+```
+
+#### `localStart(connectorId?: number, idTag?: string): Promise<LocalStartResult>`
+
+Simulates a local (RFID/button) start: sends `Authorize`, then `StartTransaction`.
+
+- `connectorId` defaults to `1`
+- `idTag` defaults to `'LOCALTAG'`
+
+```typescript
+type LocalStartResult =
+  | { ok: true; transactionId: number | null }
+  | { ok: false; reason: 'not_connected' | 'connector_not_found' | 'already_charging' | 'reservation_conflict' | 'authorize_rejected' };
+```
+
+```typescript
+const result = await charger.localStart(1, 'RFID-ABC');
+if (!result.ok) {
+  console.error(result.reason);
+}
+```
+
+#### `stopConnector(connectorId?: number): Promise<LocalStopResult>`
+
+Sends `StopTransaction` and transitions the connector back to `Available`.
+
+- `connectorId` defaults to `1`
+
+```typescript
+type LocalStopResult =
+  | { ok: true }
+  | { ok: false; reason: 'connector_not_found' | 'no_active_transaction' };
+```
+
+#### `getPower(): { amps: number; volts: number; watts: number }`
+
+Returns the current power model. Watts is derived (`amps * volts`).
+
+#### `setPower(amps?: number, volts?: number): void`
+
+Updates the power model used for meter value calculations. Pass only the fields you want to change.
 
 #### `snapshot(): ChargerSnapshot`
 
-Get full snapshot of charger state.
+Returns a point-in-time copy of the charger state.
 
 ```typescript
-const {
-  evseId,
-  connected,
-  state,
-  power,
-  firmwareVersion,
-} = charger.snapshot();
+type ChargerSnapshot = {
+  evseId: string;
+  csmsUrl: string;
+  connectors: number;
+  connected: boolean;
+  state: ConnectorState;
+  firmwareVersion: string;
+  power: { amps: number; volts: number; watts: number };
+};
+```
+
+#### `getClient(): OcppClient`
+
+Returns the underlying `OcppClient`. Useful for lower-level control in tests (e.g. `authorize()`, `dataTransfer()`, `sendMeterValues()`).
+
+---
+
+### `createChargers(propertiesList, options?): Charger[]`
+
+Creates multiple chargers from an array of properties objects. All chargers share the same `options`.
+
+```typescript
+import { createChargers } from 'ev-charging-simulator';
+
+const chargers = createChargers([
+  { evseId: 'EVSE-001', power: { amps: 32, volts: 230 } },
+  { evseId: 'EVSE-002', power: { amps: 16, volts: 230 } },
+], { csmsUrl: 'ws://localhost:9000/ocpp1.6' });
+
+await Promise.all(chargers.map(c => c.connect()));
 ```
 
 ---
 
-## Usage Examples
+### `loadChargersFromConfig(source?, options?): Promise<Charger[]>`
 
-### Example 1: Simulate Multiple Chargers from Config
+Loads charger definitions from a JSON file path, an object, or an array, and returns connected-ready `Charger` instances.
 
 ```typescript
 import { loadChargersFromConfig } from 'ev-charging-simulator';
 
-// Load from JSON file
-const chargers = await loadChargersFromConfig('./chargers.json', {
+const chargers = await loadChargersFromConfig('./evse-config.json', {
   csmsUrl: 'ws://localhost:9000/ocpp1.6',
-  connectors: 2,
-  bootTemplate: {
-    chargePointVendor: 'MyVendor',
-    chargePointModel: 'MyModel',
-  },
 });
-
-// Connect all
-await Promise.all(chargers.map(c => c.connect()));
-
-console.log(
-  `Connected ${chargers.filter(c => c.isConnected()).length}/${chargers.length}`
-);
-
-// Example: trigger charging on first charger
-await chargers[0].setStatus('Charging', 1);
 ```
 
-**chargers.json:**
+Config file format:
 
 ```json
 {
   "evses": [
     {
-      "evseId": "CHARGER_001",
+      "evseId": "EVSE-001",
       "connectors": 2,
-      "power": { "amps": 32, "volts": 230 }
-    },
-    {
-      "evseId": "CHARGER_002",
-      "connectors": 2,
-      "power": { "amps": 16, "volts": 230 }
-    }
-  ]
-}
-```
-
-### Example 2: Simulated Charging Flow
-
-```typescript
-import { Charger, ConnectorState } from 'ev-charging-simulator';
-
-async function simulateChargingSession(charger: Charger) {
-  // Step 1: Available
-  await charger.setStatus(ConnectorState.Available, 1);
-
-  // Step 2: RFID card presented → Start transaction
-  await charger.localStart(1, 'USER_RFID_123');
-
-  // Step 3: Charging
-  await charger.setStatus(ConnectorState.Charging, 1);
-  console.log('Charging... [simulating for 5 seconds]');
-  await new Promise(r => setTimeout(r, 5000));
-
-  // Step 4: Stop charging
-  await charger.stopConnector(1);
-
-  // Step 5: Back to Available
-  await charger.setStatus(ConnectorState.Available, 1);
-  console.log('Session complete');
-}
-
-const charger = new Charger({ evseId: 'DEMO-1', connectors: 1 });
-await charger.connect();
-await simulateChargingSession(charger);
-await charger.shutdown();
-```
-
-### Example 3: Error Handling and Reconnection
-
-```typescript
-import { Charger } from 'ev-charging-simulator';
-
-const charger = new Charger({
-  evseId: 'RESILIENT-1',
-  csmsUrl: 'ws://csms.example.com:9000/ocpp1.6',
-});
-
-// Connect with timeout
-try {
-  const timeoutPromise = new Promise<void>((_, reject) =>
-    setTimeout(() => reject(new Error('Connection timeout')), 10000)
-  );
-  await Promise.race([charger.connect(), timeoutPromise]);
-  console.log('Connected!');
-} catch (err) {
-  console.error('Connection failed:', err.message);
-  process.exit(1);
-}
-
-// Monitor connectivity
-const checkConnection = setInterval(() => {
-  const status = charger.isConnected() ? 'OK' : 'DISCONNECTED';
-  console.log(`[${new Date().toISOString()}] Status: ${status}`);
-}, 30000);
-
-// Graceful shutdown
-process.on('SIGINT', async () => {
-  clearInterval(checkConnection);
-  await charger.shutdown();
-  process.exit(0);
-});
-```
-
----
-
-## Configuration
-
-### Via Environment Variables
-
-```bash
-export CSMS_URL=ws://csms.example.com:9000/ocpp1.6
-export ACE_LOGIN_PASSWORD=super_secret_123
-```
-
-### Via Configuration File
-
-**evse-config.json:**
-
-```json
-{
-  "evses": [
-    {
-      "evseId": "CHARGER-A",
-      "connectors": 2,
-      "csmsUrl": "ws://localhost:9000/ocpp1.6",
       "power": { "amps": 32, "volts": 230 },
       "boot": {
-        "chargePointVendor": "GenericVendor",
-        "chargePointModel": "GenericModel",
-        "firmwareVersion": "1.0.0"
-      },
-      "location": {
-        "id": "LOC_001",
-        "name": "Downtown Station"
+        "chargePointVendor": "Acme",
+        "chargePointModel": "FastCharger",
+        "firmwareVersion": "2.1.0"
       }
     }
   ]
 }
 ```
 
-### Programmatically
-
-```typescript
-const chargers = [
-  {
-    evseId: 'CHARGER-1',
-    connectors: 1,
-    csmsUrl: 'ws://localhost:9000/ocpp1.6',
-    power: { amps: 16, volts: 230 },
-  },
-];
-
-const instances = createChargers(chargers);
-```
+`loadChargersFromConfig` accepts the same `ChargerFleetLoadOptions` as the charger constructor options, plus `bootTemplate` (applied before per-charger `boot`) and `bootOverrides` (applied after).
 
 ---
 
-## OCPP Traffic Observer
+### Traffic observer
 
-Every OCPP message sent and received is broadcast in real-time so QA tools can watch the wire without a proxy.
-
-### WebSocket endpoint (server mode)
-
-Connect to `ws://localhost:3000/ws/traffic` while the server is running. Each message is a JSON object:
-
-```json
-{
-  "ts": "2026-06-19T12:00:00.000Z",
-  "evseId": "EVSE-001",
-  "dir": "send",
-  "msgType": 2,
-  "action": "StartTransaction",
-  "msgId": "5",
-  "payload": { "connectorId": 1, "idTag": "ABC123", "meterStart": 1234 }
-}
-```
-
-| Field | Values | Description |
-|-------|--------|-------------|
-| `dir` | `send` / `recv` | CP→CSMS or CSMS→CP |
-| `msgType` | `2` / `3` / `4` | CALL / CALLRESULT / CALLERROR |
-| `action` | string | Present on CALL frames only |
-
-Filter to a single charger: `ws://localhost:3000/ws/traffic?evseId=EVSE-001`
-
-### Programmatic (library mode)
+Every OCPP frame sent and received is emitted on `trafficBus`. This lets you inspect raw traffic without a proxy.
 
 ```typescript
 import { trafficBus } from 'ev-charging-simulator';
 import type { TrafficEvent } from 'ev-charging-simulator';
 
 trafficBus.on('message', (event: TrafficEvent) => {
-  console.log(`[${event.dir}] ${event.evseId} ${event.action ?? event.msgType} ${event.msgId}`);
+  console.log(event.dir, event.action, event.evseId);
+});
+```
+
+```typescript
+type TrafficEvent = {
+  ts: string;          // ISO timestamp
+  evseId: string;
+  dir: 'send' | 'recv';
+  msgType: 2 | 3 | 4; // CALL / CALLRESULT / CALLERROR
+  action?: string;     // present on CALL frames
+  msgId: string;
+  payload: Record<string, unknown>;
+};
+```
+
+---
+
+## Framework integration
+
+### Playwright
+
+Use a [fixture](https://playwright.dev/docs/test-fixtures) so each test gets a fresh charger that is automatically shut down.
+
+```typescript
+// fixtures.ts
+import { test as base } from '@playwright/test';
+import { Charger } from 'ev-charging-simulator';
+
+type Fixtures = {
+  charger: Charger;
+};
+
+export const test = base.extend<Fixtures>({
+  charger: async ({}, use) => {
+    const charger = new Charger({
+      evseId: `TEST-${Date.now()}`,
+      csmsUrl: process.env.CSMS_URL ?? 'ws://localhost:9000/ocpp1.6',
+    });
+    await charger.connect();
+    await use(charger);
+    await charger.shutdown();
+  },
+});
+
+export { expect } from '@playwright/test';
+```
+
+```typescript
+// charging.spec.ts
+import { test, expect } from './fixtures';
+import { ConnectorState } from 'ev-charging-simulator';
+
+test('CSMS shows charger as available after boot', async ({ page, charger }) => {
+  await page.goto('/dashboard');
+  await expect(page.getByTestId(`charger-${charger.evseId}`)).toHaveText('Available');
+});
+
+test('CSMS shows active transaction', async ({ page, charger }) => {
+  const result = await charger.localStart(1, 'RFID-001');
+  expect(result.ok).toBe(true);
+
+  await page.goto('/dashboard');
+  await expect(page.getByTestId(`charger-${charger.evseId}`)).toHaveText('Charging');
+});
+```
+
+If you need multiple chargers per test, parametrize the fixture or create a fleet fixture:
+
+```typescript
+// fixtures.ts (fleet variant)
+import { test as base } from '@playwright/test';
+import { createChargers, type Charger } from 'ev-charging-simulator';
+
+type Fixtures = {
+  chargerFleet: Charger[];
+};
+
+export const test = base.extend<Fixtures>({
+  chargerFleet: async ({}, use) => {
+    const chargers = createChargers(
+      [{ evseId: 'FLEET-001' }, { evseId: 'FLEET-002' }, { evseId: 'FLEET-003' }],
+      { csmsUrl: process.env.CSMS_URL ?? 'ws://localhost:9000/ocpp1.6' },
+    );
+    await Promise.all(chargers.map(c => c.connect()));
+    await use(chargers);
+    await Promise.all(chargers.map(c => c.shutdown()));
+  },
 });
 ```
 
 ---
 
-## Error Handling
-
-### Connection Errors
+### Vitest
 
 ```typescript
-try {
+// charger.test.ts
+import { beforeEach, afterEach, describe, it, expect } from 'vitest';
+import { Charger, ConnectorState } from 'ev-charging-simulator';
+
+describe('charging flow', () => {
+  let charger: Charger;
+
+  beforeEach(async () => {
+    charger = new Charger({
+      evseId: 'TEST-001',
+      csmsUrl: 'ws://localhost:9000/ocpp1.6',
+    });
+    await charger.connect();
+  });
+
+  afterEach(async () => {
+    await charger.shutdown();
+  });
+
+  it('starts in Available state', () => {
+    expect(charger.getState()).toBe(ConnectorState.Available);
+  });
+
+  it('transitions to Charging after localStart', async () => {
+    const result = await charger.localStart(1, 'RFID-001');
+    expect(result.ok).toBe(true);
+    expect(charger.getState()).toBe(ConnectorState.Charging);
+  });
+
+  it('returns to Available after stopConnector', async () => {
+    await charger.localStart(1, 'RFID-001');
+    const result = await charger.stopConnector(1);
+    expect(result.ok).toBe(true);
+    expect(charger.getState()).toBe(ConnectorState.Available);
+  });
+});
+```
+
+For shared setup across a suite, use `beforeAll` / `afterAll` — but note that state from one test will carry over to the next.
+
+```typescript
+import { beforeAll, afterAll, describe, it, expect } from 'vitest';
+import { Charger } from 'ev-charging-simulator';
+
+describe('long-running suite', () => {
+  let charger: Charger;
+
+  beforeAll(async () => {
+    charger = new Charger({ evseId: 'SHARED-001' });
+    await charger.connect();
+  });
+
+  afterAll(async () => {
+    await charger.shutdown();
+  });
+
+  it('...', () => { /* ... */ });
+});
+```
+
+---
+
+### Jest
+
+```typescript
+// charger.test.ts
+import { Charger, ConnectorState } from 'ev-charging-simulator';
+
+let charger: Charger;
+
+beforeEach(async () => {
+  charger = new Charger({
+    evseId: 'TEST-001',
+    csmsUrl: 'ws://localhost:9000/ocpp1.6',
+  });
   await charger.connect();
-} catch (err) {
-  if (err.message.includes('timeout')) {
-    console.error('CSMS took too long to respond');
-  } else if (err.message.includes('refused')) {
-    console.error('CSMS is not accepting connections');
-  } else {
-    console.error('Unexpected error:', err.message);
-  }
-}
+});
+
+afterEach(async () => {
+  await charger.shutdown();
+});
+
+test('transitions to Charging after localStart', async () => {
+  const result = await charger.localStart(1, 'RFID-001');
+  expect(result.ok).toBe(true);
+  expect(charger.getState()).toBe(ConnectorState.Charging);
+});
 ```
 
-### Transaction Errors
+If you use Jest with ESM, add the following to `jest.config.js`:
 
-```typescript
-const started = await charger.localStart(1, 'TAG');
-// If authorization fails or connector is busy, start is ignored safely
-// Check status to verify:
-const state = charger.getState();
-if (state !== ConnectorState.Charging) {
-  console.log('Transaction did not start');
-}
-```
-
-### Retry Pattern
-
-```typescript
-async function connectWithRetry(
-  charger: Charger,
-  maxAttempts = 3,
-  delayMs = 1000
-) {
-  for (let i = 1; i <= maxAttempts; i++) {
-    try {
-      await charger.connect();
-      return;
-    } catch (err) {
-      if (i === maxAttempts) throw err;
-      console.log(`Attempt ${i} failed, retrying in ${delayMs}ms...`);
-      await new Promise(r => setTimeout(r, delayMs * i)); // Exponential backoff
-    }
-  }
-}
-
-await connectWithRetry(charger);
+```js
+export default {
+  extensionsToTreatAsEsm: ['.ts'],
+  transform: {
+    '^.+\\.tsx?$': ['ts-jest', { useESM: true }],
+  },
+};
 ```
 
 ---
 
-## Troubleshooting
-
-### Connection Stuck / Timeout
-
-**Symptom:** `await charger.connect()` hangs indefinitely
-
-**Solutions:**
-
-1. Verify CSMS URL is correct and reachable:
-   ```bash
-   telnet csms.example.com 9000
-   ```
-
-2. Check firewall rules allow WebSocket (port 9000 or your CSMS port)
-
-3. Add explicit timeout:
-   ```typescript
-   const timeoutMs = 10000;
-   await Promise.race([
-     charger.connect(),
-     new Promise((_, r) =>
-       setTimeout(() => r(new Error('Timeout')), timeoutMs)
-     ),
-   ]);
-   ```
-
-### Charger Disconnects Immediately
-
-**Symptom:** Connection succeeds but charger only stays connected briefly
-
-**Solutions:**
-
-1. Review CSMS logs for boot notification rejection
-
-2. Verify boot options (vendor, model, firmware) are acceptable to CSMS
-
-3. Check if heartbeat is being negotiated:
-   ```typescript
-   charger.getHeartbeatPeriodMs(); // Should be non-zero after connect
-   ```
-
-### Charger State Not Updating
-
-**Symptom:** `setStatus()` doesn't reflect changes
-
-**Solutions:**
-
-1. Always `await` async methods:
-   ```typescript
-   await charger.setStatus(ConnectorState.Charging, 1); // ✓ Correct
-   charger.setStatus(ConnectorState.Charging, 1);      // ✗ Fire-and-forget
-   ```
-
-2. Verify no pending transactions or state conflicts
-
-3. Check CSMS logs for ChangeAvailability or StatusNotification rejections
-
-### Memory Leaks
-
-All timers and WebSocket listeners are properly cleaned up with:
+### Node.js built-in test runner
 
 ```typescript
-await charger.shutdown(); // Cleans everything
-```
+import { describe, it, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { Charger, ConnectorState } from 'ev-charging-simulator';
 
-Ensure `shutdown()` is called on exit for proper resource cleanup.
+describe('charger', () => {
+  let charger: Charger;
+
+  before(async () => {
+    charger = new Charger({ evseId: 'TEST-001' });
+    await charger.connect();
+  });
+
+  after(async () => {
+    await charger.shutdown();
+  });
+
+  it('starts in Available state', () => {
+    assert.equal(charger.getState(), ConnectorState.Available);
+  });
+});
+```
 
 ---
 
-## Testing
+## Inspecting OCPP traffic in tests
 
-### Running Tests Locally
+Subscribe to `trafficBus` before calling connect, then assert on the frames you care about.
 
-```bash
-# Run all tests once
-npm test
+```typescript
+import { Charger, trafficBus, type TrafficEvent } from 'ev-charging-simulator';
 
-# Watch mode (re-run on file changes)
-npm run test:watch
+const frames: TrafficEvent[] = [];
+trafficBus.on('message', e => frames.push(e));
 
-# Generate coverage report
-npm run test:coverage
+const charger = new Charger({ evseId: 'TRAFFIC-001' });
+await charger.connect();
+await charger.localStart();
+
+const startTx = frames.find(f => f.action === 'StartTransaction' && f.dir === 'send');
+console.log(startTx?.payload);
+// { connectorId: 1, idTag: 'LOCALTAG', meterStart: ..., timestamp: '...' }
 ```
 
-### Test Coverage
+---
 
-This project maintains **100% code coverage** with **97+ tests** across:
+## Environment variables
 
-- ✅ **Unit Tests** — Individual component behavior
-- ✅ **Integration Tests** — OCPP protocol message flows
-- ✅ **Error Handling** — Edge cases and failure scenarios
-- ✅ **Firmware Manager** — Update lifecycle management
-- ✅ **Configuration Loading** — JSON parsing and validation
-
-**Coverage breaks down as:**
-
-| Area | Coverage |
-|------|----------|
-| Charger API | 100% |
-| OCPP Protocol | 100% |
-| WebSocket Connection | 100% |
-| Error Handling | 100% |
-| Route Handlers | 100% |
-
-### Continuous Integration
-
-Every push and pull request automatically triggers:
-
-1. **Build validation** — TypeScript compilation
-2. **Unit tests** — Full test suite on Node 18, 20, 22
-3. **Security scan** — Dependency audit + Trivy scanning
-4. **Coverage reporting** — Metrics uploaded to Codecov
-
-View CI status and coverage:
-- **Actions** tab → **Test & Build** workflow
-- **Codecov** → [Coverage dashboard](https://codecov.io/gh/larsperceus/ev-charging-simulator)
-- Current badge: [![codecov](https://codecov.io/gh/larsperceus/ev-charging-simulator/branch/main/graph/badge.svg)](https://codecov.io/gh/larsperceus/ev-charging-simulator)
-
-**Coverage Details:**
-
-The coverage badge shows the percentage of code lines executed by tests. Click the codecov badge to see:
-- Line-by-line coverage map
-- Commit history of coverage changes
-- Comparison with previous versions
-- Detailed coverage by file
+| Variable | Default | Description |
+|---|---|---|
+| `CSMS_URL` | `ws://localhost:9000/ocpp1.6` | Default CSMS endpoint when not set in constructor |
+| `ACE_LOGIN_PASSWORD` | _(empty)_ | Password for the ACE compatibility HTTP API |
+| `LOG_OCPP_TRAFFIC` | `false` | Set to `true` to log every OCPP frame to stdout |
+| `FIRMWARE_ALLOWED_HOSTS` | _(any)_ | Comma-separated list of allowed firmware update hostnames |
+| `FIRMWARE_REQUIRE_CHECKSUM` | `true` | Set to `false` to skip firmware update checksum validation |
 
 ---
 
 ## License
 
-MIT — See LICENSE file for details
-
----
-
-**Questions? Issues?** Open an issue on GitHub or check the [test suite](./src/__tests__) for comprehensive usage examples.
+MIT

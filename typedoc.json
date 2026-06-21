@@ -1,0 +1,11 @@
+{
+  "entryPoints": ["src/public.ts"],
+  "out": "docs",
+  "name": "ev-charging-simulator",
+  "readme": "README.md",
+  "includeVersion": true,
+  "navigationLinks": {
+    "npm": "https://www.npmjs.com/package/ev-charging-simulator",
+    "GitHub": "https://github.com/larsperceus/ev-charging-simulator"
+  }
+}

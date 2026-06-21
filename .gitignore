@@ -103,3 +103,4 @@ npm-shrinkwrap.json
 .turbo/
 .eslintignore
 SECURITY.md.bak
+*.tgz

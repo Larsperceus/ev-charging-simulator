@@ -24,7 +24,7 @@
   "homepage": "https://www.npmjs.com/package/ev-charging-simulator",
   "repository": {
     "type": "git",
-    "url": "https://github.com/larsperceus/ev-charging-simulator.git"
+    "url": "https://github.com/Larsperceus/ev-charging-simulator.git"
   },
   "bugs": {
     "url": "https://github.com/larsperceus/ev-charging-simulator/issues"
